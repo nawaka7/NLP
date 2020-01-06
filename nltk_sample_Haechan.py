@@ -1,756 +1,282 @@
-# Booking System (Concert Ticket)
-import pymysql.cursors
+# NLTK SAMPLE CODES
+from requests import get
+from bs4 import BeautifulSoup
+from pandas import DataFrame
+import pandas as pd
+import seaborn as sns
+import numpy as np
+import matplotlib.pyplot as plt
 
-def connect_sql():
-    connection = pymysql.connect(
-    host = 'YOUR_HOST',
-    port = 8888,
-    user = 'USER_NAME',
-    password = 'PASSWORD',
-    db = 'DATABASE',
-    charset = 'utf8',
-    cursorclass = pymysql.cursors.DictCursor,
-    autocommit = True)
-    return connection
+############################## SOUP
+#2018 data
+url = 'https://www.fantasypros.com/nfl/rankings/dynasty-rb.php'
+response = get(url)
+# print(response.text)
 
-connection = connect_sql()
+html_sp = BeautifulSoup(response.text, 'html.parser')
+ranks = html_sp.find_all('input', class_ = 'wsis')
+ranks_df = DataFrame( columns= 'data-id data-name data-team'.split())
+for n in range(len(ranks)):
+    ranks_df = ranks_df.append({'data-id': ranks[n]['data-id'],
+                     'data-name': ranks[n]['data-name'],
+                    'data-team': ranks[n]['data-team']}, ignore_index= True)
+
+avgs = html_sp.find_all('td', class_= 'view-options ranks')
+avgs_df = DataFrame([float(avgs[i].contents[0]) for i in range(len(avgs))]).values.reshape(-1, 4)
+avgs_df = DataFrame(avgs_df, columns = 'Best Worst Average SD'.split())
+final_df = pd.concat([ranks_df, avgs_df], axis= 1)
+
+axes = sns.barplot(y= 'data-name', x= 'Average', data= final_df['data-name Average'.split()][:9], orient= 'h')
 
 
-# no.1 Create Tables
+#2015 data
+url_2015 = 'https://www.fantasypros.com/nfl/reports/leaders/rb.php?year=2015'
+response_2015 = get(url_2015)
+html_sp_2015 = BeautifulSoup(response_2015.text, 'html.parser')
+avgs_2015 = html_sp_2015.find_all('td', class_= 'center')
+names_2015 = html_sp_2015.find_all('a', class_= 'player-name')
+temp = []
+for i in avgs_2015:
+    try:
+        temp.append(float(i.text))
+    except ValueError:
+        temp.append(i.text)
+names_temp = DataFrame([i.text for i in names_2015], columns= ['names'])
+final_df = DataFrame(temp).values.reshape(-1,5)
+final_df = DataFrame(final_df, columns= 'rank team points games average'.split())
+final_df = pd.concat([names_temp, final_df], axis= 1)
+
+axes_2015 = sns.barplot(y= 'names', x= 'average', data= final_df['names average'.split()][:10], orient= 'h')
+
+
+############################## RE
+
+import re
+
+#1
+string = "Earth is the third planet from the Sun"
+result = re.findall(r'\b[A-Z|a-z]{2}', string)
+print(result)
+
+#2
+string = 'abc.test@gmail.com, xyz@test.in, test.first@analyticsvidhya.com, first.test@rest.biz'
+result = re.findall(r'@\w*.\w*', string)
+print(result)
+
+#3
+string = 'Amit 34-3456 12-05-2007, XYZ 56-4532 11-11-2011, ABC 67-8945 12-01-2009'
+result = re.findall(r'\d{2}-\d{2}-\d{4}', string)
 try:
-
-# Q: how to clear tables? error - Unknown table
-    with connection.cursor() as cursor:
-        sql_comm = "drop table if exists Book cascade"
-        cursor.execute(sql_comm)
-
-        sql_comm = "drop table if exists Audience cascade;"
-        cursor.execute(sql_comm)
-
-        sql_comm = "drop table if exists Building cascade;"
-        cursor.execute(sql_comm)
-
-        sql_comm = "drop table if exists Performances cascade;"
-        cursor.execute(sql_comm)
-
-        sql_comm = "drop table if exists Buildings cascade;"
-        cursor.execute(sql_comm)
-
-    connection = connect_sql()
-    with connection.cursor() as cursor:
-        sql_comm = "create table Audience (" \
-                   "aud_id varchar(10) AUTO_INCREMENT primary key," \
-                   "aud_name varchar(200)," \
-                   "gender varchar(1) check(gender = 'M' or gender = 'F')," \
-                   "age int, check( 0 <= age <= 999))"
-        cursor.execute(sql_comm)
-
-        sql_comm = "create table Buildings (" \
-                   "building_id varchar(5) AUTO_INCREMENT primary key," \
-                   "building_name varchar(200)," \
-                   "building_cap int default 0," \
-                   "building_loc varchar(200)," \
-                   "building_asgn int default 0 check(building_asgn =1 or building_asgn =0))"
-        cursor.execute(sql_comm)
-
-        sql_comm = "create table Building (" \
-                   "building_id varchar(5)," \
-                   "seat_number int," \
-                   "constraint building_pk primary key(building_id, seat_number)," \
-                   "constraint fk_buildings foreign key(building_id) references Buildings(building_id) " \
-                   "on delete cascade on update cascade)"
-        cursor.execute(sql_comm)
-
-        sql_comm = "create table Performances (" \
-                   "perf_id varchar(10) AUTO_INCREMENT primary key," \
-                   "perf_name varchar(200)," \
-                   "perf_type varchar(10)," \
-                   "price int, check(0 <= price <= 1000000)," \
-                   "booked int default 0," \
-                   "building_id varchar(5) default null," \
-                   "constraint fk_perf foreign key(building_id) references Buildings(building_id)" \
-                   "on delete cascade on update cascade)"
-        cursor.execute(sql_comm)
-
-        sql_comm = "create table Book (" \
-                   "booking_id varchar(10) primary key," \
-                   "aud_id varchar(10) not null AUTO_INCREMENT," \
-                   "perf_id varchar(10) not null," \
-                   "building_id varchar(5) not null," \
-                   "seat_number varchar(4) not null," \
-                   "constraint fk_book_aud foreign key(aud_id) references Audience(aud_id) " \
-                   "on delete cascade on update cascade," \
-                   "constraint fk_book_per foreign key(perf_id) references Performances(perf_id) " \
-                   "on delete cascade on update cascade," \
-                   "constraint fk_book_bui foreign key(building_id, seat_number) references Building(building_id, seat_number)" \
-                   "on delete cascade on update cascade)"
-        cursor.execute(sql_comm)
-    connection = connect_sql()
-    with connection.cursor() as cursor:
-        cursor.execute("show tables")
-        print(cursor.fetchall(), "\nTables Are Successfully Created")
-
-except:
-    print("ERROR: Tables Failed to Be Created")
-finally: pass
+    for i in pd.to_datetime(result).date:
+        print(i)
+except ValueError:
+    print("This set of digits is not in time format")
 
 
-# no.2 Insert Data
-connection = connect_sql()
-with connection.cursor() as cursor:
-    #Audience
-    sql_comm = "insert into Audience(aud_name, gender, age) " \
-               "values ('Yoon Jaeyeun', 'M', 30);"
-    cursor.execute(sql_comm)
-    sql_comm = "insert into Audience(aud_name, gender, age) " \
-               "values ('Kim Taeuk', 'M', 27);"
-    cursor.execute(sql_comm)
-    sql_comm = "insert into Audience(aud_name, gender, age) " \
-               "values ('Ahn Chaemin', 'F', 25);"
-    cursor.execute(sql_comm)
+#4
+string = 'Earth\'s gravity interacts with other objects in space, especially the Sun and the Moon'
+result = re.findall(r'\b[a|e|i|o|u]\w*', string, re.IGNORECASE)
+print(result)
 
-    #Buildings
-    sql_comm = "insert into Buildings(building_name, building_loc) " \
-               "values ('Seoul Arts Center', 'Seoul');"
-    cursor.execute(sql_comm)
-    sql_comm = "insert into Buildings(building_name, building_loc) " \
-               "values ('Grand Peace Palace', 'Seoul');"
-    cursor.execute(sql_comm)
+#5
+lst = ['010-256-1354', '010-1234-5576', '070-642-0384', '010-290*-4858', '0105734123']
 
-    #Building (seat_numbers)
-    sql_comm = "insert into Building(building_id, seat_number)" \
-               "values ('1', 'A001');"
-    cursor.execute(sql_comm)
-    sql_comm = "insert into Building(building_id, seat_number)" \
-               "values ('1', 'A002');"
-    cursor.execute(sql_comm)
-    sql_comm = "insert into Building(building_id, seat_number)" \
-               "values ('1', 'A003');"
-    cursor.execute(sql_comm)
-    sql_comm = "insert into Building(building_id, seat_number)" \
-               "values ('1', 'B001');"
-    cursor.execute(sql_comm)
-    sql_comm = "insert into Building(building_id, seat_number)" \
-               "values ('1', 'B002');"
-    cursor.execute(sql_comm)
-    sql_comm = "insert into Building(building_id, seat_number)" \
-               "values ('1', 'B003');"
-    cursor.execute(sql_comm)
-    sql_comm = "insert into Building(building_id, seat_number)" \
-               "values ('2', 'A001');"
-    cursor.execute(sql_comm)
-    sql_comm = "insert into Building(building_id, seat_number)" \
-               "values ('2', 'A002');"
-    cursor.execute(sql_comm)
-    sql_comm = "insert into Building(building_id, seat_number)" \
-               "values ('2', 'A003');"
-    cursor.execute(sql_comm)
-    sql_comm = "insert into Building(building_id, seat_number)" \
-               "values ('2', 'B001');"
-    cursor.execute(sql_comm)
-    sql_comm = "insert into Building(building_id, seat_number)" \
-               "values ('2', 'B002');"
-    cursor.execute(sql_comm)
-    sql_comm = "insert into Building(building_id, seat_number)" \
-               "values ('2', 'B003');"
-    cursor.execute(sql_comm)
-
-    #Performances
-    sql_comm = "insert into Performances(perf_name, perf_type, price, building_id)" \
-               "values ('Coldplay Concert', 'Concert', 100000, '1');"
-    cursor.execute(sql_comm)
-    sql_comm = "insert into Performances(perf_name, perf_type, price, building_id)" \
-               "values ('Jekyll & Hyde', 'Musical', 70000, '2');"
-    cursor.execute(sql_comm)
-
-    #Book
-    sql_comm = "insert into Book(aud_id, perf_id, building_id, seat_number)" \
-               "values ('1', '1', '1', 'A001');"
-    cursor.execute(sql_comm)
-    sql_comm = "insert into Book(aud_id, perf_id, building_id, seat_number)" \
-               "values ('1', '1', '2', 'A002');"
-    cursor.execute(sql_comm)
-
-    # count building capacity, assigned performance, and performance bookings
-    # 1) building_cap
-def count_cap():
-    connection = connect_sql()
-    with connection.cursor() as cursor:
-        cursor.execute("select distinct building_id from Building")
-        result = cursor.fetchall()
-        building_ids = []
-        for i in range(len(result)):
-            building_ids += list(result[i].values())
-        for i in range(len(building_ids)):
-            sql_comm = "update Buildings " \
-                       "set building_cap = (select count(seat_number) " \
-                       "from Building where building_id = \'%s\') " \
-                       "where building_id = \'%s\'" %(building_ids[i], building_ids[i])
-            cursor.execute(sql_comm)
-
-# 2) building_asgn
-def count_asgn(building_id):
-    connection = connect_sql()
-    with connection.cursor() as cursor:
-        cursor.execute("select count(building_id) from Performances where building_id = \'%s\';"%building_id)
-
-# 3) Performances booked
-def count_booked():
-    connection = connect_sql()
-    with connection.cursor() as cursor:
-        cursor.execute("select perf_id, count(booking_id) from Book group by perf_id")
-        result = cursor.fetchall()
-        for i in range(len(result)):
-            sql_comm = "update Performances " \
-                       "set booked = %d "\
-                       "where perf_id = \'%s\'" %(result[i]['count(booking_id)'], result[i]['perf_id'])
-            cursor.execute(sql_comm)
-
-print("Data are Successfully Inserted")
+for i in lst:
+    if re.findall(r'010-\d{3,4}-\d{4}', i):
+        print("yes")
+    else:
+        print("no")
 
 
-# no.3 Application Classes Definitions
-#id_generator
-# import random
-# def id_gen(num):
-#     id = ''
-#     for i in range(num):
-#         id += str(random.randrange(10))
-#     return id
+##############NLTK
+import nltk
+from nltk.corpus import gutenberg as gu
+import random as rd
+from sklearn.feature_extraction.text import CountVectorizer
 
-#id_autoincrement
+def run(switch=True):
+    if switch is True:
+        print("you chose to filter stopwords")
+    else:
+        print("you chose not to filter stopwords")
 
-class Insert(object):
-    def __init__(self):
-        self.sql_comm_insert = "insert into "
+    def find(lst2find, word_string, lst2add):
+        # find the word(string) in the target list and return it in the storage list
+        for i in lst2find:
+            if word_string in i:
+                lst2add.append(i)
 
-    def into_buildings(self, building_name, building_cap, building_loc):
-        while True:
-            connection = connect_sql()
-            # with connection.cursor() as cursor:
-            #     sql_comm = "select building_id from Buildings"
-            #     cursor.execute(sql_comm)
-            #     result = cursor.fetchall()
-            # building_ids= []
-            # for i in range(len(result)):
-            #     building_ids += result[i]['building_id']
-            # while True:
-                # building_id = id_gen(5)
-                # if building_id not in building_ids:
-                #     break
-            if not (type(building_name) == str and len(building_name) <= 200):
-                print("building_name must be shorter than or equal to 200 letters")
-                break
-            elif not (type(building_loc) == str and len(building_loc) <= 200):
-                print("building_loc must be shorter than or equal to 200 letters")
-                break
-            else:
-                connection = connect_sql()
-                with connection.cursor() as cursor:
-                    sql_comm = self.sql_comm_insert + "Buildings(building_name, building_cap, building_loc) values(" \
-                           "\'%s\', \'%s\', \'%s\')" %(building_name, building_cap, building_loc)
-                    cursor.execute(sql_comm)
-                break
-        return building_id
+    books_names = []
+    for i in 'hamlet macbeth caesar paradise persuasion moby'.split():
+        find(gu.fileids(), i, books_names)
 
-    def into_performances(self, perf_name, perf_type, price):
-        while True:
-            connection = connect_sql()
-            with connection.cursor() as cursor:
-                sql_comm = "select perf_id from Performances"
-                cursor.execute(sql_comm)
-                result = cursor.fetchall()
-            perf_ids= []
-            for i in range(len(result)):
-                perf_ids += result[i]['perf_id']
-            while True:
-                perf_id = id_gen(10)
-                if perf_id not in perf_ids:
+    # functuation filtering
+    def filter_puctuation(lst):
+        punctuations = ['.', ',', '?', '!', '\'', '\"', ':', ';', '-', '[', ']', '(', ')', '{', '}', '."', '--', ',"']
+        lst = [word for word in lst if word not in punctuations]
+        return lst
+
+    # stopword switch
+    def filter_stopword(lst, switch_stopword=1):
+        if switch_stopword == False:
+            pass
+        else:
+            stopword_lst = nltk.corpus.stopwords.words(
+                'english') + 'thou thy would shall could thy thee may must upon ye the might'.split()
+            lst = [word.lower() for word in lst if word.lower() not in stopword_lst]
+        return lst
+
+    def filter_uselesswords(lst):
+        uselesswords = 'ham'.split()
+        lst = [word for word in lst if word not in uselesswords]
+        return lst
+
+    # segmentation
+    def segment(lst, seg_unit=5000):
+        dict_doc = {}
+        n_seg = (len(lst) // seg_unit)
+        for seg in range(n_seg):
+            dict_doc[seg] = []
+            for k in range(seg_unit):
+                try:
+                    dict_doc[seg].append(lst[k + seg * seg_unit])
+                except:
                     break
-            if not (type(perf_id) == str and len(perf_id) == 10 and perf_id.isdigit()):
-                print("perf_id must be a 10 digit-long string")
-                break
-            elif not(type(perf_name) == str and len(perf_name) <= 200):
-                print("perf_name must be shorter than or equal to 200 letters")
-                break
-            elif not (type(perf_type) == str and len(perf_type) <= 200):
-                print("perf_type must be shorter than or equal to 200 letters")
-                break
-            elif not (type(price) == int and 0 <= price <= 1000000):
-                print("price must be between 0 ~ 1,000,000")
-                break
-            else:
-                connection = connect_sql()
-                with connection.cursor() as cursor:
-                    sql_comm = self.sql_comm_insert + \
-                               "Performances(perf_id, perf_name, perf_type, price) values(" \
-                       "\'%s\', \'%s\', \'%s\', \'%d\')" %(perf_id, perf_name, perf_type, price)
-                    cursor.execute(sql_comm)
-                break
-        return perf_id
+        return dict_doc
 
-    def into_audience(self, aud_name, gender, age):
-        while True:
-            connection = connect_sql()
-            with connection.cursor() as cursor:
-                sql_comm = "select aud_id from Audience"
-                cursor.execute(sql_comm)
-                result = cursor.fetchall()
-            aud_ids= []
-            for i in range(len(result)):
-                aud_ids += result[i]['aud_id']
-            while True:
-                aud_id = id_gen(10)
-                if aud_id not in aud_ids:
-                    break
-            if not (type(aud_id) == str and len(aud_id) == 10 and aud_id.isdigit()):
-                print("aud_id must be a 10 digit-long string")
-                break
-            elif not (type(aud_name) == str and len(aud_name) <= 200):
-                print("aud_name must be shorter than or equal to 200 letters")
-                break
-            elif not (gender == 'M' or gender == 'F'):
-                print("gender must be either 'M' or 'F'")
-                break
-            elif not (type(age) == int and 0 <= age <= 999):
-                print("age must be between 0 ~ 999")
-                break
-            else:
-                connection = connect_sql()
-                with connection.cursor() as cursor:
-                    sql_comm = self.sql_comm_insert + "Audience(aud_id, aud_name, gender, age) values(" \
-                           "\'%s\', \'%s\', \'%s\', \'%d\')" %(aud_id, aud_name, gender, age)
-                    cursor.execute(sql_comm)
-                break
-        return aud_id
+    # doc term matrices by book
+    def doc_term_mat(dict2find, vocab_lst):
+        temp_lst = []
+        for k in dict2find.keys():
+            temp_lst.append(' '.join(dict2find[k]))
+        vectorizer = CountVectorizer(vocabulary=vocab_lst)
+        a = vectorizer.fit_transform(temp_lst).toarray()
+        return DataFrame(a, columns=vocab_lst)
 
-    def into_building(self, building_id, seat_number):
-        while True:
-            if not (type(building_id) == str and len(building_id) == 5 and building_id.isdigit()):
-                print("building_id must be a 5 digit-long string")
-                break
-            elif not (type(seat_number) == str and len(seat_number) <= 4):
-                print("seat_number must be shorter or equal to 4 letters")
-                break
-            else:
-                connection = connect_sql()
-                with connection.cursor() as cursor:
-                    sql_comm = self.sql_comm_insert + "Building(building_id, seat_number) values(" \
-                                                      "\'%s\', \'%s\')" % (building_id, seat_number)
-                    cursor.execute(sql_comm)
-                count_cap()
-                break
+    # make a dictionary for books segmented by words
+    books_words = {}
+    switch_stopword = 1
+    for i in books_names:
+        print(i)
+        books_words[i] = gu.words(i)
+        if i == 'melville-moby_dick.txt':
+            books_words[books_names[-1]] = [books_words[books_names[-1]][i] for i in
+                                            rd.sample(range(len(books_words[books_names[-1]])),
+                                                      80000)]  # mobydick 80,000 words
+        print('original: ', len(books_words[i]))
+        books_words[i] = segment(books_words[i])
+        print("segment: ", len(books_words[i]))
 
-    def into_book(self, aud_id, perf_id, seat_number, building_id):
-        connection = connect_sql()
-        with connection.cursor() as cursor:
-            sql_comm = "select booking_id from Book"
-            cursor.execute(sql_comm)
-            result = cursor.fetchall()
-        booking_ids= []
-        for i in range(len(result)):
-            booking_ids += result[i]['booking_id']
-        while True:
-            booking_id = id_gen(10)
-            if booking_id not in booking_ids:
-                break
-        connection = connect_sql()
-        with connection.cursor() as cursor:
-            sql_comm = self.sql_comm_insert + "Book(booking_id, aud_id, perf_id, seat_number, building_id) values(" \
-                   "\'%s\', \'%s\', \'%s\', \'%s\', \'%s\')" % (booking_id, aud_id, perf_id, seat_number, building_id)
-            cursor.execute(sql_comm)
-        count_booked()
-        return booking_id
+    for i in books_names:
+        for key in books_words[i].keys():
+            books_words[i][key] = filter_puctuation(books_words[i][key])
+            books_words[i][key] = filter_stopword(books_words[i][key], switch_stopword=switch)
+            books_words[i][key] = filter_uselesswords(books_words[i][key])
 
 
+    # gathering all the words in the books
+    entire_words = []
+    for key in books_words.keys():
+        for _, i in books_words[key].items():
+            entire_words += i
 
-class Delete(object):
-    def __init__(self):
-        self.sql_comm_del = "delete from "
-    def from_buildings(self, building_id):
-        while True:
-            if not (type(building_id) == str and len(building_id) == 5):
-                print("building_id must be a 5-digit-long string")
-                break
-            else:
-                connection = connect_sql()
-                with connection.cursor() as cursor:
-                    sql_comm = self.sql_comm_del + "Buildings where building_id = %s" %building_id
-                    cursor.execute(sql_comm)
-                count_asgn(building_id)
-                break
+    # entire_words= filter_punctuation(entire_words)
+    # entire_words= filter_stopword(entire_words)
 
-    def from_performances(self, perf_id):
-        while True:
-            if not (type(perf_id) == str and len(perf_id) == 10):
-                print("perf_id must be a 10-digit-long string")
-                break
-            else:
-                connection = connect_sql()
-                with connection.cursor() as cursor:
-                    result = Select('building_id', 'Performances', 'where = perf_id').execute()
-                    sql_comm = self.sql_comm_del + "Performances where perf_id = %s"
-                    cursor.execute(sql_comm, perf_id)
-                count_asgn(result[0]['building_id'])
-                break
+    # find the top 50 most frequently used words
+    entire_freq = nltk.FreqDist([word.lower() for word in entire_words])
+    entire_freq_lst = sorted(list(zip(entire_freq.values(), entire_freq.keys())), reverse=True)
+    top50_freq = entire_freq_lst[:50]
+    top50_freq_wd = [word for _, word in top50_freq]
 
-    def from_audience(self, aud_id):
-        while True:
-            if not (type(aud_id) == str and len(aud_id) == 10):
-                print("aud_id must be a 10-digit-long string")
-                break
-            else:
-                connection = connect_sql()
-                with connection.cursor() as cursor:
-                    sql_comm = self.sql_comm_del + "Audience where aud_id = %s"
-                    cursor.execute(sql_comm, aud_id)
-                break
+    #doc_term_mat creation
+    doc_term_mat_dict = {}
+    for key in books_words.keys():
+        doc_term_mat_dict[key] = doc_term_mat(books_words[key], top50_freq_wd)
+    # total by author
+    # Shakespear
+    temp = np.array([doc_term_mat_dict[books_names[0]][i].sum() + doc_term_mat_dict[books_names[1]][i].sum() +
+                     doc_term_mat_dict[books_names[2]][i].sum()
+                     for i in top50_freq_wd]).reshape(1, -1)
+    freq_shakespear = DataFrame(temp, columns=top50_freq_wd)
+    # Milton
+    temp = np.array([doc_term_mat_dict[books_names[3]][i].sum() for i in top50_freq_wd]).reshape((1, -1))
+    freq_milton = DataFrame(temp, columns=top50_freq_wd)
+    # Austen
+    temp = np.array([doc_term_mat_dict[books_names[4]][i].sum() for i in top50_freq_wd]).reshape((1, -1))
+    freq_austen = DataFrame(temp, columns=top50_freq_wd)
+    # Melville
+    temp = np.array([doc_term_mat_dict[books_names[5]][i].sum() for i in top50_freq_wd]).reshape((1, -1))
+    freq_melville = DataFrame(temp, columns=top50_freq_wd)
+    freq_dict = {'Shakespeare': freq_shakespear, 'Milton': freq_milton,
+                 'Austen': freq_austen, 'Melville': freq_melville}
 
-    def from_book(self, booking_id):
-        while True:
-            if not (type(booking_id) == str and len(booking_id) == 10):
-                print("booking_id must be a 10-digit-long string")
-                break
-            else:
-                connection = connect_sql()
-                with connection.cursor() as cursor:
-                    sql_comm = self.sql_comm_del + "Book where booking_id = %s"
-                    cursor.execute(sql_comm, booking_id)
-                count_booked()
-                break
+    # draw the charts
+    fig1, axes1 = plt.subplots()
+    axes1.plot(freq_shakespear.columns, freq_shakespear.values[0], color='b')
+    axes1.plot(freq_milton.columns, freq_milton.values[0], color='r')
+    axes1.plot(freq_austen.columns, freq_austen.values[0], color='g')
+    axes1.plot(freq_melville.columns, freq_melville.values[0], color='k')
+    name = "stopwords filtering " + "%s"%switch + " Frequency"
+    plt.title(name)
+    plt.show()
+    # sns.barplot(y= freq_melville.values[0], x= freq_melville.columns)
 
+    # Frequency Matrix by Author
+    author_dict = {}
+    author_dict['Shakespeare'] = pd.concat(
+        (doc_term_mat_dict[books_names[0]], doc_term_mat_dict[books_names[1]], doc_term_mat_dict[books_names[2]]),
+        axis=0)
+    author_dict['Milton'] = doc_term_mat_dict[books_names[3]]
+    author_dict['Austen'] = doc_term_mat_dict[books_names[4]]
+    author_dict['Melville'] = doc_term_mat_dict[books_names[5]]
 
-class Select(object):
-    def __init__(self, column_name, Table_name, where = None):
-            self.sql_comm = "select %s from %s %s" %(column_name, Table_name,where)
-    def execute(self):
-        connection = connect_sql()
-        with connection.cursor() as cursor:
-            cursor.execute(self.sql_comm)
-            return cursor.fetchall()
+    # Normalizing
+    import copy
 
+    author_norm_dict = copy.deepcopy(author_dict)
+    for key in author_dict.keys():
+        mean = author_dict[key].mean(axis=0)
+        std = author_dict[key].std(axis=0)
+        for col in author_dict[key].columns:
+            if std[col] == 0:
+                std[col] = 1
+                print(col, " is counted 0. Thus, STD is adjusted to 1 for the sake of calculation")
+            author_norm_dict[key][col] = (author_dict[key][col] - mean[col]) / std[col]
 
-print("Classes and Functions Were Successfully Defined")
+    # SVD_S
+    colors_dict = {'Shakespeare': "#FFCCFF", 'Milton': '#CC99FF', 'Austen': '#E5FFCC', 'Melville': '#CCE5FF'}
+    markers_dict = {'Shakespeare': "s", 'Milton': '2', 'Austen': 'o', 'Melville': '+'}
 
+    fig2, axes2 = plt.subplots()
+    for key in author_norm_dict.keys():
+        s, _, _ = np.linalg.svd(author_norm_dict[key])
+        axes2.scatter(s[:, 0], s[:, 1], label=key, marker=markers_dict[key], color=colors_dict[key])
+    # plt.legend(loc= 'best')
+    name = "stopwords filtering " + "%s" % switch + " SVD S"
+    plt.title(name)
+    plt.show()
 
-    # no.4 Application Execution
-
-if input("Please, press Enter to proceed: ", ):
-    pass
-
-line_len_1 = 60
-while True:
-    connection = connect_sql()
-    print("="*line_len_1 + "\n"\
-          "1. print all buildings \n"\
-          "2. print all performances \n"\
-          "3. print all audiences \n"\
-          "4. insert a new building \n"\
-          "5. remove a building \n"\
-          "6. insert a new performance \n"\
-          "7. remove a performance \n"\
-          "8. insert a new audience \n"\
-          "9. remove an audience \n"\
-          "10. assign a performance to a building \n"\
-          "11. book a performance \n"\
-          "12. print all performances assigned to a building \n"\
-          "13. print all audiences who booked for a performance \n"\
-          "14. print ticket booking status of a performance \n"\
-          "15. exit\n"+ "="*line_len_1)
-
-    while True:
-        num_choice = input("Select your action: ", )
-        if 1 <=  int(num_choice) <= 15:
-            print("you chose < %s >." %num_choice)
-            break
-        else: print("the number you chose, < %s >, is out of range (not 1~15).\n" %num_choice)
+    # SVD_D
+    locs_fig = [221, 222, 223, 224]
+    cmaps_dict = {'Shakespeare': "Blues", 'Milton': 'Greens', 'Austen': 'Reds', 'Melville': 'Greys'}
+    fig3, axes3 = plt.subplots()
+    name = "stopwords filtering " + "%s" % switch + " SVD D"
+    plt.title(name)
+    for num, key in enumerate(author_norm_dict.keys()):
+        _, _, vh = np.linalg.svd(author_norm_dict[key])
+        plt.subplot(locs_fig[num])
+        plt.scatter(vh[:, 0], vh[:, 1], label=key, marker=markers_dict[key], color=colors_dict[key])
+        for c, txt in enumerate(top50_freq_wd):
+            axes3.annotate(txt, xy=(vh[:, 0][c], vh[:, 1][c]))
+        plt.legend(loc='best')
+    plt.show()
 
 
-    line_len_2 = 70
-    if num_choice == '1':
-        connection = connect_sql()
-        result = Select('*', 'Buildings').execute()
-        print("-" * line_len_2 +'\nid'.ljust(8), 'name'.ljust(30), 'location'.ljust(10),
-              'capacity'.ljust(10), 'assigned\n' +"-" * line_len_2)
-        for i in range(len(result)):
-            print(result[i]['building_id'].ljust(7), result[i]['building_name'].ljust(30),
-                  result[i]['building_loc'].ljust(10), str(result[i]['building_cap']).ljust(10),
-                  str(result[i]['building_asgn']).ljust(10))
-        print("-" * line_len_2)
-
-
-    elif num_choice == '2':
-        connection = connect_sql()
-        result = Select('*', 'Performances').execute()
-        print("-" * line_len_2 +'\nid'.ljust(13), 'name'.ljust(27), 'type'.ljust(10),
-              'price'.ljust(10), 'booked\n' +"-" * line_len_2)
-        for i in range(len(result)):
-            print(result[i]['perf_id'].ljust(12), result[i]['perf_name'].ljust(27),
-                  result[i]['perf_type'].ljust(10), str(result[i]['price']).ljust(10),
-                  str(result[i]['booked']).ljust(10))
-        print("-" * line_len_2)
-
-
-    elif num_choice == '3':
-        connection = connect_sql()
-        result = Select('*', 'Audience').execute()
-        print("-" * line_len_2 +'\nid'.ljust(13), 'name'.ljust(30), 'gender'.ljust(10),
-              'age'.ljust(10), '\n' + "-" * line_len_2)
-        for i in range(len(result)):
-            print(result[i]['aud_id'].ljust(12), result[i]['aud_name'].ljust(30),
-                  result[i]['gender'].ljust(10), str(result[i]['age']).ljust(10))
-        print("-" * line_len_2)
-
-
-    elif num_choice == '4':
-        connection = connect_sql()
-        while True:
-            building_name = input("building name: ",)
-            if len(building_name) <= 200:
-                break
-            print("building name must be under 200 letters")
-        while True:
-            building_loc = input("building location: ", )
-            if len(building_name) <= 200:
-                break
-            print("building location must be under 200 letters")
-        print("building id is automatically created \n",
-              "building capacity is automatically calculated when you insert seats data into the building table")
-        building_id = Insert().into_buildings(building_name, building_loc)
-        seats = []
-        while True:
-            seat = input("seat numbers of the building: ", )
-            if len(seat) > 4:
-                print("building location must be under or equal to 4 digit- or letter- long string, e.g., 'A001', 'B123")
-            else:
-                seats.append(seat)
-                print(seat, 'added to', building_id)
-            answer = input('continue inserting (press Enter)? if not, type \'exit\'', )
-            if answer == 'exit':
-                break
-        for i in range(len(seats)):
-            Insert().into_building(building_id, seats[i])
-            count_cap()
-        print("A building is successfully inserted:")
-
-
-    elif num_choice == '5':
-        connection = connect_sql()
-        temp = Select('building_id', 'Buildings').execute()
-        building_ids = list(map(lambda x: temp[x]['building_id'], range(len(temp))))
-        while True:
-            building_id = input('building id: ',)
-            if building_id in building_ids:
-                Delete().from_buildings(building_id)
-                break
-            else:
-                print("The building id is not defined. Check the table")
-
-
-    elif num_choice == '6':
-        connection = connect_sql()
-        while True:
-            perf_name = input("performance name: ",)
-            if len(perf_name) <= 200:
-                break
-            print("performance name must be under 200 letters")
-        while True:
-            perf_type = input("performance type: ", )
-            if len(perf_type) <= 10:
-                break
-            print("performance type must be under 200 letters")
-        while True:
-            price = int(input("performance price: ",))
-            if 0 <= price <= 1000000:
-                break
-            print("price must be between 0 and 1,000,000")
-        print("performance id is automatically created \n",
-              "the number of bookings is automatically calculated whenever a booking is made.\n"
-              "building_id allocation is optional: default is None.")
-        perf_id = Insert().into_performances(perf_name, perf_type, price)
-        print("A performance is successfully created: ", perf_id)
-
-    elif num_choice == '7':
-        connection = connect_sql()
-        temp = Select('perf_id', 'Performances').execute()
-        perf_ids = list(map(lambda x: temp[x]['perf_id'], range(len(temp))))
-        while True:
-            perf_id = input('performance id: ', )
-            if perf_id in perf_ids:
-                Delete().from_performances(perf_id)
-                break
-            else:
-                print("The performance id is not defined. Check the table")
-
-
-    elif num_choice == '8':
-        connection = connect_sql()
-        while True:
-            aud_name = input("audience name: ",)
-            if len(aud_name) <= 200:
-                break
-            print("audience name must be under 200 letters")
-        while True:
-            gender = input("audience gender (M, F): ", )
-            if gender == 'M' or gender == 'F':
-                break
-            print("audience gender must be either M or F")
-        while True:
-            age = int(input("audience age: ",))
-            if 0 <= age <= 999:
-                break
-            print("age must be between 0 and 999")
-        print("audience id is automatically created.")
-        aud_id = Insert().into_audience(aud_name, gender, age)
-        print("An audience is successfully created: ", aud_id)
-
-
-    elif num_choice == '9':
-        connection = connect_sql()
-        temp = Select('aud_id', 'Audience').execute()
-        aud_ids = list(map(lambda x: temp[x]['aud_id'], range(len(temp))))
-        while True:
-            aud_id = input('audience id: ', )
-            if aud_id in aud_ids:
-                Delete().from_audience(aud_id)
-                break
-            else:
-                print("The audience id is not defined. Check the table")
-
-
-    elif num_choice == '10':
-        connection = connect_sql()
-        temp = Select('building_id', 'Buildings').execute()
-        building_ids = list(map(lambda x: temp[x]['building_id'], range(len(temp))))
-        while True:
-            building_id = input('building id: ',)
-            if building_id in building_ids:
-                break
-            print("The building id is not defined. Check the table")
-
-        temp = Select('perf_id', 'Performances', 'where building_id is null ').execute()
-        perf_ids = list(map(lambda x: temp[x]['perf_id'], range(len(temp))))
-        while True:
-            perf_id = input("performance id: ",)
-            if perf_id in perf_ids:
-                break
-            print("The performance id is either not defined or already assigned. Check the table")
-        with connection.cursor() as cursor:
-            sql_comm = "update Performances set building_id = \'%s\' where perf_id = \'%s\'"%(building_id, perf_id)
-            cursor.execute(sql_comm)
-        count_asgn(building_id)
-        print("Successfully assigned a performance to a building")
-
-
-    elif num_choice == '11':
-        connection = connect_sql()
-        temp = Select('perf_id', 'Performances').execute()
-        perf_ids = list(map(lambda x: temp[x]['perf_id'], range(len(temp))))
-        while True:
-            perf_id = input("performance id: ")
-            if perf_id in perf_ids:
-                break
-            print("The performance is not defined. Check the table")
-
-        temp = Select('aud_id', 'Audience').execute()
-        aud_ids = list(map(lambda x: temp[x]['aud_id'], range(len(temp))))
-        while True:
-            aud_id = input("audience id: ")
-            if aud_id in aud_ids:
-                break
-            print("The audience is not defined. Check the table")
-
-        temp = Select('building_id', 'Performances', 'where perf_id = \'%s\''%perf_id).execute()
-        building_id = temp[0]['building_id']
-        temp = Select('seat_number', 'Building', 'where building_id = \'%s\'' % building_id).execute()
-        seat_numbers = list(map(lambda x: temp[x]['seat_number'], range(len(temp))))
-
-        temp = Select('seat_number', 'Book', 'where perf_id = \'%s\''%perf_id).execute()
-        booked_seat_number = list(map(lambda x: temp[x]['seat_number'], range(len(temp))))
-
-        temp = Select('seat_number', 'Building', 'where building_id = \'%s\' and seat_number not in ('
-                                                 'select seat_number from Book where perf_id = \'%s\')'%(building_id,perf_id)).execute()
-        unbooked_seat_number = list(map(lambda x: temp[x]['seat_number'], range(len(temp))))
-
-        print("Choose a seat from down below. \n", unbooked_seat_number)
-        looper = True
-        while looper:
-            seat_number = input("seat number:  \n#for multiple seats, separate them with a comma")
-            seat_number_lst = seat_number.split(',')
-            for i in seat_number_lst:
-                if i.strip() in seat_numbers:
-                    if i.strip() not in booked_seat_number:
-                        pass
-                    else:
-                        print("The seat, \'%s\', is already booked."%i)
-                        seat_number_lst.remove(i)
-                else:
-                    print("The seat number, \'%s\', is not defined. Check the table."%i)
-                    seat_number_lst.remove(i)
-            looper = False
-
-        if len(seat_number_lst) > 0:
-            for i in seat_number_lst:
-                booking_id = Insert().into_book(aud_id, perf_id, i.strip(), building_id)
-                print("Successfully booked a performance: ", booking_id)
-
-
-    elif num_choice == '12':
-        connection = connect_sql()
-        temp = Select('building_id', 'Buildings').execute()
-        building_ids = list(map(lambda x: temp[x]['building_id'], range(len(temp))))
-        while True:
-            building_id = input('building id: ', )
-            if building_id in building_ids:
-                break
-            print("The building id is not defined. Check the table")
-        result = Select('*', 'Performances', 'where building_id = \'%s\''%building_id).execute()
-        print("-" * line_len_2 + '\nid'.ljust(13), 'name'.ljust(27), 'type'.ljust(10),
-              'price'.ljust(10), 'booked\n' + "-" * line_len_2)
-        for i in range(len(result)):
-            print(result[i]['perf_id'].ljust(12), result[i]['perf_name'].ljust(27),
-                  result[i]['perf_type'].ljust(10), str(result[i]['price']).ljust(10),
-                  str(result[i]['booked']).ljust(10))
-        print("-" * line_len_2)
-
-
-    elif num_choice == '13':
-        connection = connect_sql()
-        result = Select('*', 'Audience', 'where aud_id in (select aud_id from Book)').execute()
-        print("-" * line_len_2 + '\nid'.ljust(13), 'name'.ljust(30), 'gender'.ljust(10),
-              'age'.ljust(10), '\n' + "-" * line_len_2)
-        for i in range(len(result)):
-            print(result[i]['aud_id'].ljust(12), result[i]['aud_name'].ljust(30),
-                  result[i]['gender'].ljust(10), str(result[i]['age']).ljust(10))
-        print("-" * line_len_2)
-
-
-    elif num_choice == '14':
-        connection = connect_sql()
-        temp = Select('perf_id', 'Performances').execute()
-        perf_ids = list(map(lambda x: temp[x]['perf_id'], range(len(temp))))
-        while True:
-            perf_id = input("performance id: ")
-            if perf_id in perf_ids:
-                break
-            print("The performance is not defined. Check the table")
-
-        with connection.cursor() as cursor:
-            sql_comm = "select bd.seat_number, bk.aud_id "\
-            "from Building bd left join Book bk on(bd.seat_number = bk.seat_number) "\
-            "where bd.building_id = (select building_id from Performances where perf_id = \'%s\')"%perf_id
-            cursor.execute(sql_comm)
-            result = cursor.fetchall()
-
-        print("-" * line_len_2 + '\nseat number'.ljust(30), 'audience id'.ljust(30),'\n' + "-" * line_len_2)
-        for i in range(len(result)):
-            print(result[i]['seat_number'].ljust(30), result[i]['aud_id'])
-        print("-" * line_len_2)
-
-
-    elif num_choice == '15':
-        print("Bye!")
-        break
-
-
-connection.close()
+for i in [True, False]:
+    if i is True:
+        print("This time, without stopwords")
+        run(switch=i)
+    else:
+        print("This time, with stopwords")
+        run(switch= i)
